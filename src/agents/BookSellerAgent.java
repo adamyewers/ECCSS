@@ -38,15 +38,16 @@ public class BookSellerAgent extends Agent {
 	 * @param deadline The deadline by which to sell the book
 	 */
 	public void putForSale(String title, int initPrice, int minPrice,Date deadline) {
-		addBehaviour(new PriceManager(title, initPrice, minPrice, deadline));
+		addBehaviour(new PriceManager(this, title, initPrice, minPrice, deadline));
 	}
 
 	public class PriceManager extends TickerBehaviour {
 		private String title;
 		private int initPrice, minPrice, currentPrice, deltaP;
-		private long initTime, deadline, deltaT;
+		private long initTime, deadline, deltaT;		
 		
-		PriceManager(String t, int ip, int mp, Date d) {
+		private PriceManager(Agent a, String t, int ip, int mp, Date d) {
+			super(a, 60000);
 			title = t;
 			initPrice = ip;
 			currentPrice = initPrice;
