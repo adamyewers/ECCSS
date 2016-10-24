@@ -37,6 +37,7 @@ public class BookSellerAgent extends Agent {
 	 * @param minPrice The minimum price
 	 * @param deadline The deadline by which to sell the book
 	 */
+
 	public void putForSale(String title, int initPrice, int minPrice,Date deadline) {
 		addBehaviour(new PriceManager(this, title, initPrice, minPrice, deadline));
 	}
