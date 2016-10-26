@@ -40,32 +40,17 @@ public class O2AInterfaceExample {
 		pMain.setParameter(Profile.GUI, "true");
 		ContainerController mainCtrl = rt.createMainContainer(pMain);
 
-		// Create and start an agent of class CounterAgent
-		System.out.println(">>>>>>>>>>>>>>> Starting up a CounterAgent...");
-		AgentController agentCtrl = mainCtrl.createNewAgent("BookBuyerAgent", BookBuyerAgent.class.getName(), new Object[0]);
-		agentCtrl.start();
+		// Create and start an agent of class CounterAgSent
+		System.out.println(">>>>>>>>>>>>>>> Starting Master Scheduling Agent");
+		AgentController agentCtrl1 = mainCtrl.createNewAgent("MasterSchedulingAgent", MasterSchedulingAgent.class.getName(), new Object[0]);
+		agentCtrl1.start();
 		
-		// Wait a bit
-		System.out.println(">>>>>>>>>>>>>>> Wait a bit...");
-		Thread.sleep(10000);
-				
-		try {
-			// Retrieve O2A interface CounterManager1 exposed by the agent to make it activate the counter
-			System.out.println(">>>>>>>>>>>>>>> Activate counter");
-			CounterManager1 o2a1 = agentCtrl.getO2AInterface(CounterManager1.class);
-			o2a1.activateCounter();
-
-			// Wait a bit
-			System.out.println(">>>>>>>>>>>>>>> Wait a bit...");
-			Thread.sleep(30000);
-
-			// Retrieve O2A interface CounterManager2 exposed by the agent to make it de-activate the counter
-			System.out.println(">>>>>>>>>>>>>>> Deactivate counter");
-			CounterManager2 o2a2 = agentCtrl.getO2AInterface(CounterManager2.class);
-			o2a2.deactivateCounter();
-		} 
-		catch (StaleProxyException e) {
-			e.printStackTrace();
-		}
+		System.out.println(">>>>>>>>>>>>>>> Starting Car Agent One");
+		AgentController agentCtrl2 = mainCtrl.createNewAgent("CarAgentOne", CarAgentOne.class.getName(), new Object[0]);
+		agentCtrl2.start();
+		
+		System.out.println(">>>>>>>>>>>>>>> Starting Car Agent Two");
+		AgentController agentCtrl3 = mainCtrl.createNewAgent("CarAgentTwo", CarAgentTwo.class.getName(), new Object[0]);
+		agentCtrl3.start();
 	}
 }

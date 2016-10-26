@@ -22,7 +22,7 @@ public class BookSellerAgent extends Agent {
 		addBehaviour(new CallForOfferServer());
 
 		// Add the behaviour serving purchase requests from buyer agents
-		addBehaviour(new PurchaseOrderServer());
+		//addBehaviour(new PurchaseOrderServer());
 	}
 
 	// Agent clean-up
