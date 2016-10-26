@@ -3,6 +3,8 @@ package agents;
 import jade.core.Agent;
 import jade.core.behaviours.Behaviour;
 import jade.core.behaviours.TickerBehaviour;
+import jade.lang.acl.ACLMessage;
+import jade.lang.acl.MessageTemplate;
 import jade.core.behaviours.CyclicBehaviour;
 import jade.core.behaviours.OneShotBehaviour;
 import jade.core.AID;
@@ -80,5 +82,40 @@ public class BookSellerAgent extends Agent {
 		public int getCurrentPrice() {
 			return currentPrice;
 		}
-	}	
+	}
+	
+	/**
+	Inner class CallForOfferServer.
+	This is the behaviour used by Book-seller agents to serve incoming call for offer from buyer agents.
+	If the indicated book is in the local catalogue, the seller agent replies with a PROPOSE message specifying the price. 
+	Otherwise a REFUSE message is sent back.
+	*/
+	private class CallForOfferServer extends CyclicBehaviour {
+		private MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.CFP);
+
+		public void action() {
+			ACLMessage msg = myAgent.receive(mt);
+			if (msg != null) {
+				// Message received. Process it
+				String title = msg.getContent();
+				ACLMessage reply = msg.createReply();
+				PriceManager pm = (PriceManager) catalogue.get(title);
+				
+				if (pm != null) {
+					// The requested book is available for sale. Reply with the	price
+					reply.setPerformative(ACLMessage.PROPOSE);
+					reply.setContent(String.valueOf(pm.getCurrentPrice()));
+				}
+				else {
+					// The requested book is NOT available for sale.
+					reply.setPerformative(ACLMessage.REFUSE);
+				}
+				myAgent.send(reply);
+			}
+			else
+			{
+				block();
+			}
+		}
+	} // End of inner class CallForOfferServer
 }
