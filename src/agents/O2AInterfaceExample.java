@@ -40,11 +40,7 @@ public class O2AInterfaceExample {
 		pMain.setParameter(Profile.GUI, "true");
 		ContainerController mainCtrl = rt.createMainContainer(pMain);
 
-		// Create and start an agent of class CounterAgSent
-		System.out.println(">>>>>>>>>>>>>>> Starting Master Scheduling Agent");
-		AgentController agentCtrl1 = mainCtrl.createNewAgent("MasterSchedulingAgent", MasterSchedulingAgent.class.getName(), new Object[0]);
-		agentCtrl1.start();
-		
+		// Create and start agents
 		System.out.println(">>>>>>>>>>>>>>> Starting Car Agent One");
 		AgentController agentCtrl2 = mainCtrl.createNewAgent("CarAgentOne", CarAgentOne.class.getName(), new Object[0]);
 		agentCtrl2.start();
@@ -52,5 +48,9 @@ public class O2AInterfaceExample {
 		System.out.println(">>>>>>>>>>>>>>> Starting Car Agent Two");
 		AgentController agentCtrl3 = mainCtrl.createNewAgent("CarAgentTwo", CarAgentTwo.class.getName(), new Object[0]);
 		agentCtrl3.start();
+		
+		System.out.println(">>>>>>>>>>>>>>> Starting Master Scheduling Agent");
+		AgentController agentCtrl1 = mainCtrl.createNewAgent("MasterSchedulingAgent", MasterSchedulingAgent.class.getName(), new Object[0]);
+		agentCtrl1.start();
 	}
 }

@@ -27,6 +27,7 @@ public class BookBuyerAgent extends Agent {
 			for (int i = 0; i < args.length; ++i) {
 				AID seller = new AID((String) args[i], AID.ISLOCALNAME);
 				sellerAgents.addElement(seller);
+				System.out.println(seller.getName());
 			}
 		}
 	}
