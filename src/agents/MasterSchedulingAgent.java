@@ -19,6 +19,8 @@ import java.util.*;
 public class MasterSchedulingAgent extends Agent {
 	//------------------ Master Agent encapsulated variables ------------------
 	private Vector<AID> carAgents = new Vector<AID>();
+	Map<AID, Boolean> kvMap = new HashMap<AID,Boolean>();
+	int step; //Used for messaging switch statement
 
 	//masterSchedule variable - data type?
 
@@ -27,11 +29,13 @@ public class MasterSchedulingAgent extends Agent {
 	
 	//------------------- Setup -----------------------
 	protected void setup() {
+		step = 0;
+		
 		// Printout a start up message
 		System.out.println("Master Scheduling Agent is ready.");
 		addBehaviour(new ExampleBehaviour(this));
 		addBehaviour(new DiscoverCarAgents());
-		addBehaviour(new ReceiveChargeRequest());
+		addBehaviour(new FindHighPriority(this));
 		takeDown();
 		
 		//Register the master agent in the yellow pages (df agent) so that it can be found by the car agents
@@ -82,6 +86,7 @@ public class MasterSchedulingAgent extends Agent {
 				for (int i = 0; i < result.length; ++i) {
 					carAgents.addElement(result[i].getName());
 					System.out.println("Adding " + carAgents.elementAt(i).getName() + " to Master Scheduling Agent");
+					kvMap.put(result[i].getName(), false);
 				}
 			}
 			catch (FIPAException fe) {
@@ -90,20 +95,8 @@ public class MasterSchedulingAgent extends Agent {
 			}
 		}
 	}
-
 	
-	public class ReceiveChargeRequest extends CyclicBehaviour {
-		public void action() {
-			//check if a schedule has been requested, if so process it
-			ACLMessage msg = receive();
-			if (msg != null) {
-				// Process the message
-				System.out.print(msg.getContent());
-			}
-		}
-	}
-	
-	
+	//----------------Functions---------------------------
 	//--------------------------------------------
 	// Function: CalcPriotity(int)
 	// Desc.: Calculate the priority of a car
@@ -112,20 +105,11 @@ public class MasterSchedulingAgent extends Agent {
 	//
 	// Outputs: priority - int
 	//-------------------------------------------
-	private double CalcPriority(int i)
+	private double CalcPriority(int battLevel, float timeToLeave, boolean isHybrid, int waitingTime)
 	{
 		double priority;
-		int battLevel; // A number between 0 and 100
-		float timeToLeave;
-		bool isHybrid;
 		
-		battLevel = carAgents.elementAt(i).getBatteryLevel();
-		
-		timeToLeave = carAgents.elementAt(i).getHoursToLeave();
-		
-		isHybrid = carAgents.elementAt(i).IsHybrid;
-		
-		priority = (100-battLevel)*timeToLeave;
+		priority = (100-battLevel)*timeToLeave + (waitingTime*10);
 		
 		if(isHybrid)
 			priority = priority * 0.9; // Priority factor reduced for hybrid cars
@@ -133,30 +117,202 @@ public class MasterSchedulingAgent extends Agent {
 		return priority;
 	}
 	
-	//--------------------------------------------
-	// Function: ProcessRequest
-	// Desc.: Calculate the priority of a car
-	// Inputs: i - the index of the car 
-	// 	in carAgents AID
-	//
-	// Outputs: priority - int
-	//-------------------------------------------
-	private void ProcessRequest()
-	{
-		int total = carAgents.size();
-		for(int i = 0; i < total; i++)
-		{
-			AID x = carAgents.elementAt(i);
-			if(x.requireCharge == true)
+	
+	
+	//---------------- Messaging -------------------------
+
+	private class FindHighPriority extends TickerBehaviour 
+	{ 
+		private String bCast;
+		private AID highPriorityCar; // The seller agent who provides the best offer
+		private int highestPriority; // The best offered price
+		private int repliesCount = 0; // The counter of replies from seller
+	
+	
+		private MessageTemplate mt; // The template to receive replies private int step = 0;
+		
+		public FindHighPriority(Agent a) { 
+		super(a, 2000);
+		}
+		
+		public void onTick() {
+			
+			//USE MAP TO MAKE dockedCars ARRAY
+			AID[] dockedCars = new AID[kvMap.size()];
+			for(int i = 0; i<kvMap.size(); i++)
 			{
-				double newPriority = calcPriority(i);
-				double currentPriority = calcPriority(currentChargingAgentIndex);
-				if(priority > currentChargingAgent.Priority)
-				{
-					Charge(x);
-					currentChargingIndex = i;
-				}
+				if(kvMap.get(carAgents.elementAt(i)) == true)
+				kvMap.get(i);
 			}
+			switch (step) {
+			
+			case 0:
+				// Send the cfp to all cars
+				ACLMessage cfp = new ACLMessage(ACLMessage.CFP); 
+				
+				for (int i = 0; i < carAgents.size(); ++i) {
+				      cfp.addReceiver(dockedCars[i]);
+				    }
+				cfp.setContent(bCast);
+				cfp.setConversationId("info-collect"); cfp.setReplyWith("cfp"+System.currentTimeMillis()); // Unique value
+				send(cfp);
+				// Prepare the template to get proposals 
+				mt = MessageTemplate.and(MessageTemplate.MatchConversationId("info-collect"),
+				           MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
+				step = 1;
+				break;
+				    
+			case 1:
+				// Receive all proposals/refusals from seller agents 
+				ACLMessage reply = receive(mt);
+				if (reply != null) 
+				{
+					// Reply received
+					if (reply.getPerformative() == ACLMessage.PROPOSE) 
+					{
+						// This is an offer
+						String msgContent = reply.getContent(); 
+						
+						//BREAK UP STRING, GET VARIABLES, DO CALC
+						String[] parts = msgContent.split(", ");
+						int battLevel = Integer.parseInt(parts[0]);
+						float timeToLeave = Float.parseFloat(parts[1]);
+						boolean isHybrid = Boolean.parseBoolean(parts[2]);
+						int waitingTime = Integer.parseInt(parts[3]);
+						
+						double priority = CalcPriority(battLevel, timeToLeave, isHybrid, waitingTime);
+						
+						if (highPriorityCar == null || priority > highestPriority) 
+						{
+							// This is the best offer at present bestPrice = price;
+							highPriorityCar = reply.getSender();
+						} 
+					}
+					repliesCount++;
+					
+					if (repliesCount >= carAgents.size()) 
+					{
+						// We received all replies
+						step = 2; 
+					}
+				} 
+				else 
+				{
+					block(); 
+				}
+				break;
+			
+			case 2:
+				if (highPriorityCar != null )//&& highestPriority > maxPrice) 
+				{
+					// Send the charge order to the car with the highest priority
+					ACLMessage charge = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
+					
+			        charge.addReceiver(highPriorityCar);
+			        charge.setContent("charge");
+			        charge.setConversationId("charge-order");
+			        charge.setReplyWith("charge"+System.currentTimeMillis()); //Unique value
+			        
+			       send(charge);
+			       // Prepare the template to get the purchase order reply 
+			       mt = MessageTemplate.and(
+	               MessageTemplate.MatchConversationId("charge-order"),
+	               MessageTemplate.MatchInReplyTo(charge.getReplyWith()));
+	               step = 3; 
+               }
+				else 
+				{
+					// If we received charge requests, terminate 
+					step = 4;
+				}
+			      break;
+			      
+			case 3:
+				// Receive the purchase order reply 
+				reply = receive(mt);
+				if (reply != null)
+				{
+					// Charge order reply received
+					if (reply.getPerformative() == ACLMessage.INFORM) 
+					{
+						String name = reply.getSender().getName();
+						System.out.println(name + " is now charging.");
+						
+						ACLMessage charge = new ACLMessage(ACLMessage.REJECT_PROPOSAL);
+						
+						for (int i = 0; i < carAgents.size(); i++)
+						{
+							
+							if ( carAgents.elementAt(i) != reply.getSender())
+							{
+								
+						        charge.addReceiver(carAgents.elementAt(i));
+							}
+						}
+
+				        charge.setContent("stop");
+				        charge.setConversationId("charge-order");
+				        charge.setReplyWith("charge"+System.currentTimeMillis()); //Unique value
+				        
+				        send(charge);
+					}
+				step = 4; 
+				}
+				else 
+				{
+					block();
+				}
+				
+				break; 
+			}
+		}
+	} // End of FindHighPriority
+	
+	private class ReceiveInfo extends CyclicBehaviour 
+	{ 
+		public void action() 
+		{
+			  ACLMessage msg = myAgent.receive();
+			  if (msg != null && msg.getOntology() == "info-collect") 
+			  {
+				  
+			  }
+			  else 
+			  {
+				  block();
+			  }
+		}
+	}
+	
+	private class ReceiveChargeRequest extends CyclicBehaviour 
+	{ 
+		public void action() 
+		{
+			  ACLMessage msg = myAgent.receive();
+			  if (msg != null && msg.getOntology() == "request-charge") 
+			  {
+				  kvMap.put(msg.getSender(), true);
+			  }
+			  else 
+			  {
+				  block();
+			  }
+		}
+	}
+	
+	private class ReceiveStopRequest extends CyclicBehaviour 
+	{ 
+		public void action() 
+		{
+			  ACLMessage msg = myAgent.receive();
+			  if (msg != null && msg.getOntology() == "stop-charge") 
+			  {
+				  kvMap.put(msg.getSender(), false);
+			  }
+			  else 
+			  {
+				  block();
+			  }
 		}
 	}
 }
