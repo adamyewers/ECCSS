@@ -23,7 +23,6 @@ public class CarAgentOne extends Agent {
 	String carState;
 	int currentBattery, maxBattery, minBattery, chargeRate, drainRate;
 	boolean isHybrid, isWaiting;
-	double distanceHome;
 	int waitTime, currentTime, dayOfWeek;
 	int[] leaveTime = new int[7];
 	int[] homeTime = new int[7];
@@ -34,7 +33,6 @@ public class CarAgentOne extends Agent {
 		System.out.println("Car Agent One is ready.");
 		
 		//Initialize variables
-		//Battery variables
 		carState = "idle";
 		
 		currentBattery = 100;
@@ -44,14 +42,12 @@ public class CarAgentOne extends Agent {
 		drainRate = 5;
 		isHybrid = false;
 		
-		distanceHome = 0;
-		
 		currentTime = 0;
 		dayOfWeek = 0;
 		waitTime = 0;
 		isWaiting = false;
 		
-		//RANDOMISE THE LEAVE AND HOME TIMES EACH DAY
+		//The times that this agent leaves the house each day with a random variation to simulate real life
 		leaveTime[0] = 7 + Randomise(1, 2);
 		leaveTime[1] = 7 + Randomise(1, 2);
 		leaveTime[2] = 7 + Randomise(1, 2);
@@ -74,6 +70,7 @@ public class CarAgentOne extends Agent {
 		addBehaviour(new Idle(this));
 		addBehaviour(new Driving(this));
 		addBehaviour(new Charging(this));
+		addBehaviour(new BatteryDead());
 		
 		//Post the car agent to the blackboard for discovery
 		DFAgentDescription postCarAgent = new DFAgentDescription();
@@ -114,6 +111,7 @@ public class CarAgentOne extends Agent {
 	}
 	
 	//Behaviors go here	
+	//Adds 1 hour to the time every second to simulate a 24 hour day and a 7 day week
 	public class ChangeDay extends TickerBehaviour {
 		public ChangeDay(Agent a) {
 			super(a, 1000);
@@ -132,10 +130,11 @@ public class CarAgentOne extends Agent {
 				}
 				currentTime = 0;
 			}
-			System.out.print(currentTime + " hour, " + currentBattery + "%\n");
+			System.out.print(currentTime + " hour, " + currentBattery + "%, Total waiting: " + waitTime + " hours\n");
 		}
 	}
 	
+	//Finds the master agent and stores it in local variable
 	public class DiscoverMasterAgent extends OneShotBehaviour {
 		public void action() {
 			//Discover and add the master scheduling agent
@@ -158,6 +157,7 @@ public class CarAgentOne extends Agent {
 		}
 	}
 	
+	//The agent is in this state when it waiting to charge and when it is sitting at home not charging
 	public class Idle extends TickerBehaviour {
 		public Idle(Agent a) {
 			super(a, 1000);
@@ -165,10 +165,12 @@ public class CarAgentOne extends Agent {
 		
 		public void onTick() {
 			if (carState == "idle") {
+				//If it is time to leave, start driving
 				if (currentTime >= leaveTime[dayOfWeek] && currentTime < homeTime[dayOfWeek]) {
 					carState = "driving";
 					System.out.println(myAgent.getLocalName() + " has started driving.\n");
 				}
+				//If car is at home waiting to charge, increment wait time for priority calculation
 				else if (isWaiting)	{
 					waitTime++;
 				}
@@ -176,6 +178,7 @@ public class CarAgentOne extends Agent {
 		}
 	}
 	
+	//The car is in this state when it is driving
 	public class Driving extends TickerBehaviour {
 		public Driving(Agent a) {
 			super(a, 1000);
@@ -183,14 +186,15 @@ public class CarAgentOne extends Agent {
 		
 		public void onTick() {
 			if (carState == "driving") {				
-
+				//Drain random amount of charge each hour to simulate random driving amounts
 				Random rand = new Random();
 				double travelling = rand.nextInt(10) + 1;	
-				if (travelling > 5)	{
-					//Drain random amount of charge each hour to simulate random driving amounts
-					currentBattery = currentBattery - Randomise(10, 20);
+				if (travelling > 3)	{
+					
+					currentBattery = currentBattery - Randomise(8, 16);
 				}
 				
+				//Request charge when it is time to go home or when the battery is below 20%
 				if (currentTime == homeTime[dayOfWeek] || currentBattery < minBattery) {
 					addBehaviour(new RequestCharge());
 				}
@@ -198,6 +202,8 @@ public class CarAgentOne extends Agent {
 		}
 	}
 	
+	
+	//The agent is in this state when it is charging
 	public class Charging extends TickerBehaviour {
 		public Charging(Agent a) {
 			super(a, 1000);
@@ -220,7 +226,8 @@ public class CarAgentOne extends Agent {
 			}			
 		}
 	}
-		
+	
+	//Sends a message to the master agent asking to charge
 	public class RequestCharge extends OneShotBehaviour  {
 		public void action() {
 			ACLMessage msg = new ACLMessage(ACLMessage.REQUEST);
@@ -230,7 +237,8 @@ public class CarAgentOne extends Agent {
 			msg.setContent("true");
 			send(msg);
 	}
-		
+	
+	//Receives the reply from the master agent to check wether it can charge or not
 	public class ReceiveRequestResult extends OneShotBehaviour  {
 		public void action() {
 			ACLMessage msg = receive();
@@ -249,7 +257,8 @@ public class CarAgentOne extends Agent {
 				isWaiting = true;
 			}
 		}
-		
+	
+	//Create and send a message to the master agent to say that this agent has stopped charging
 	public class StopCharge extends OneShotBehaviour  {
 		public void action() {
 			ACLMessage msg = new ACLMessage(ACLMessage.REQUEST);
@@ -260,19 +269,19 @@ public class CarAgentOne extends Agent {
 			send(msg);
 		}
 	
+	//Create and send a message containing all of the priority calculation information
 	public class SendInformation extends CyclicBehaviour {
 		public void action()	{
 			ACLMessage msg = myAgent.receive();
 			if (msg != null && msg.getOntology() == "info-collect") {
-				ACLMessage reply = new ACLMessage(ACLMessage.INFORM);
-							
+				ACLMessage reply = new ACLMessage(ACLMessage.INFORM);							
 				reply.setContent(Integer.toString(currentBattery) + ", " + Integer.toString(Math.abs(leaveTime[dayOfWeek] - currentTime)) + ", " + Boolean.toString(isHybrid) + ", " + Integer.toString(waitTime));
 			}
 		}
 	}
 	
 	//Prints a message if a car battery dies
-	public class Die extends CyclicBehaviour {
+	public class BatteryDead extends CyclicBehaviour {
 		public void action() {
 			if (currentBattery <= 0) {
 				currentBattery = 0;
