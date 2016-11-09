@@ -19,19 +19,36 @@ import java.util.*;
 public class MasterSchedulingAgent extends Agent {
 	//Agent variables go here
 	private Vector<AID> carAgents = new Vector<AID>();
+	//masterSchedule variable - data type?
 	
 	protected void setup() {
 		// Printout a start up message
 		System.out.println("Master Scheduling Agent is ready.");
 		addBehaviour(new ExampleBehaviour(this));
 		addBehaviour(new DiscoverCarAgents());
+		addBehaviour(new ReceiveChargeRequest());
+		takeDown();
+		
+		//Register the master agent in the yellow pages (df agent) so that it can be found by the car agents
+		DFAgentDescription postMasterAgent = new DFAgentDescription();
+		postMasterAgent.setName(getAID());
+		ServiceDescription postMasterService = new ServiceDescription();
+		postMasterService.setType("discover-master-agent");
+		postMasterService.setName(getLocalName()+"-discover-master-agent");
+		postMasterAgent.addServices(postMasterService);
+		try {
+			DFService.register(this, postMasterAgent);
+		}
+		catch (FIPAException fe) {
+			fe.printStackTrace();
+			System.out.print("Could not make " + this.getLocalName() + " discoverable.");
+		}
 	}
 	
 	protected void takeDown() {
 		// Printout a dismissal message
 		System.out.println("Master Scheduling Agent terminated.");
 	}
-	
 	
 	//Behaviors go here
 	public class ExampleBehaviour extends TickerBehaviour {
@@ -50,12 +67,12 @@ public class MasterSchedulingAgent extends Agent {
 	//This behavior discovers car agents in the yellow pages (df agent) and adds them to its list of known car agents
 	public class DiscoverCarAgents extends OneShotBehaviour {
 		public void action() {
-			DFAgentDescription template = new DFAgentDescription();
-			ServiceDescription sd = new ServiceDescription();
-			sd.setType("Car-charging");
-			template.addServices(sd);
+			DFAgentDescription findCarAgents = new DFAgentDescription();
+			ServiceDescription findCarService = new ServiceDescription();
+			findCarService.setType("discover-car-agents");
+			findCarAgents.addServices(findCarService);
 			try {
-				DFAgentDescription[] result = DFService.search(myAgent, template);
+				DFAgentDescription[] result = DFService.search(myAgent, findCarAgents);
 				carAgents.clear();
 				for (int i = 0; i < result.length; ++i) {
 					carAgents.addElement(result[i].getName());
@@ -64,7 +81,19 @@ public class MasterSchedulingAgent extends Agent {
 			}
 			catch (FIPAException fe) {
 				fe.printStackTrace();
-				System.out.print("Exception thrown and caught");
+				System.out.print("Could not add car agents to master agent.");
+			}
+		}
+	}
+
+	
+	public class ReceiveChargeRequest extends CyclicBehaviour {
+		public void action() {
+			//check if a schedule has been requested, if so process it
+			ACLMessage msg = receive();
+			if (msg != null) {
+				// Process the message
+				System.out.print(msg.getContent());
 			}
 		}
 	}
