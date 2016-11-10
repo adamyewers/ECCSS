@@ -224,7 +224,7 @@ public class MasterSchedulingAgent extends Agent {
 				else 
 				{
 					// If we received charge requests, terminate 
-					step = 4;
+					step = 0;
 				}
 			      break;
 			      
