@@ -14,7 +14,7 @@ import jade.core.behaviours.OneShotBehaviour;
 import jade.core.AID;
 import java.util.Vector;
 
-import agents.MasterSchedulingAgent.ExampleBehaviour;
+//import agents.MasterSchedulingAgent.ExampleBehaviour;
 
 import java.util.*;
 
@@ -70,6 +70,9 @@ public class CarAgentOne extends Agent {
 		addBehaviour(new Idle(this));
 		addBehaviour(new Driving(this));
 		addBehaviour(new Charging(this));
+		addBehaviour(new ReceiveRequestResult());
+		addBehaviour(new StopCharge());
+		addBehaviour(new SendInformation());
 		addBehaviour(new BatteryDead());
 		
 		//Post the car agent to the blackboard for discovery
@@ -130,7 +133,10 @@ public class CarAgentOne extends Agent {
 				}
 				currentTime = 0;
 			}
-			System.out.print(currentTime + " hour, " + currentBattery + "%, Total waiting: " + waitTime + " hours\n");
+			System.out.print(currentTime + ":00, " + currentBattery + "% Battery\n");
+			if (waitTime != 0) {
+				System.out.println("Total waiting: " + waitTime + " hours\n");
+			}
 		}
 	}
 	
@@ -197,6 +203,7 @@ public class CarAgentOne extends Agent {
 				//Request charge when it is time to go home or when the battery is below 20%
 				if (currentTime == homeTime[dayOfWeek] || currentBattery < minBattery) {
 					addBehaviour(new RequestCharge());
+
 				}
 			}			
 		}
@@ -208,6 +215,7 @@ public class CarAgentOne extends Agent {
 		public Charging(Agent a) {
 			super(a, 1000);
 		}
+	
 		
 		public void onTick() {
 			if (carState == "charging") {
@@ -236,27 +244,32 @@ public class CarAgentOne extends Agent {
 			msg.setOntology("request-charge");
 			msg.setContent("true");
 			send(msg);
+		}
 	}
 	
-	//Receives the reply from the master agent to check wether it can charge or not
+	//Receives the reply from the master agent to check whether it can charge or not
 	public class ReceiveRequestResult extends OneShotBehaviour  {
 		public void action() {
 			ACLMessage msg = receive();
-			if (msg.getContent() == "charge" && msg.getOntology() == "charge-order")	{
-
-				carState = "charging";
-				System.out.println(myAgent.getLocalName() + " has requested to charge.\n");		
-				ACLMessage reply = new ACLMessage(ACLMessage.INFORM);
-				reply.addReceiver(masterAgent);
-				reply.setOntology("charge-order");
-				reply.setContent("");
-				send(reply);
-			}
-			else if (msg.getContent() == "stop")	{
-				carState = "idle";
-				isWaiting = true;
+			if(msg != null)
+			{
+				if (msg.getContent() == "charge" && msg.getOntology() == "charge-order")	{
+	
+					carState = "charging";
+					System.out.println(myAgent.getLocalName() + " has requested to charge.\n");		
+					ACLMessage reply = new ACLMessage(ACLMessage.INFORM);
+					reply.addReceiver(masterAgent);
+					reply.setOntology("charge-order");
+					reply.setContent("");
+					send(reply);
+				}
+				else if (msg.getContent() == "stop")	{
+					carState = "idle";
+					isWaiting = true;
+				}
 			}
 		}
+	}
 	
 	//Create and send a message to the master agent to say that this agent has stopped charging
 	public class StopCharge extends OneShotBehaviour  {
@@ -268,14 +281,21 @@ public class CarAgentOne extends Agent {
 			msg.setContent("false");
 			send(msg);
 		}
+	}
 	
 	//Create and send a message containing all of the priority calculation information
 	public class SendInformation extends CyclicBehaviour {
 		public void action()	{
-			ACLMessage msg = myAgent.receive();
+			ACLMessage msg = receive();
 			if (msg != null && msg.getOntology() == "info-collect") {
+				System.out.println("info-collect message received");
+				String replyCode = msg.getReplyWith();
 				ACLMessage reply = new ACLMessage(ACLMessage.INFORM);							
 				reply.setContent(Integer.toString(currentBattery) + ", " + Integer.toString(Math.abs(leaveTime[dayOfWeek] - currentTime)) + ", " + Boolean.toString(isHybrid) + ", " + Integer.toString(waitTime));
+				reply.setConversationId("info-collect");
+				reply.addReceiver(masterAgent);
+				reply.setReplyWith(replyCode);
+				send(reply);
 			}
 		}
 	}
@@ -285,11 +305,8 @@ public class CarAgentOne extends Agent {
 		public void action() {
 			if (currentBattery <= 0) {
 				currentBattery = 0;
-				System.out.println(myAgent.getLocalName() + "battery has died, simulation failed.\n");
+				//System.out.println(myAgent.getLocalName() + "battery has died, simulation failed.\n");
 			}
 		}
 	}
-}
-}
-}
 }

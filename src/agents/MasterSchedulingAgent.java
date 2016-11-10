@@ -19,7 +19,7 @@ import java.util.*;
 public class MasterSchedulingAgent extends Agent {
 	//------------------ Master Agent encapsulated variables ------------------
 	private Vector<AID> carAgents = new Vector<AID>();
-	Map<AID, Boolean> kvMap = new HashMap<AID,Boolean>();
+	Map<String, Boolean> kvMap = new HashMap<String,Boolean>();
 	int step; //Used for messaging switch statement
 
 	//masterSchedule variable - data type?
@@ -33,9 +33,11 @@ public class MasterSchedulingAgent extends Agent {
 		
 		// Printout a start up message
 		System.out.println("Master Scheduling Agent is ready.");
-		addBehaviour(new ExampleBehaviour(this));
 		addBehaviour(new DiscoverCarAgents());
 		addBehaviour(new FindHighPriority(this));
+		addBehaviour(new ReceiveChargeRequest());
+		addBehaviour(new ReceiveStopRequest());
+		addBehaviour(new ReceiveInfo());
 		takeDown();
 		
 		//Register the master agent in the yellow pages (df agent) so that it can be found by the car agents
@@ -60,18 +62,7 @@ public class MasterSchedulingAgent extends Agent {
 	}
 
 	//------------------ Behaviors ---------------------
-	public class ExampleBehaviour extends TickerBehaviour {
-		int tick = 1;
-		
-		private ExampleBehaviour(Agent a) {
-			super(a, 2000);
-		}
-		
-		public void onTick() {
-			System.out.println("Tick #" + tick);
-			tick++;
-		}
-	}
+
 	
 	//This behavior discovers car agents in the yellow pages (df agent) and adds them to its list of known car agents
 	public class DiscoverCarAgents extends OneShotBehaviour {
@@ -86,7 +77,7 @@ public class MasterSchedulingAgent extends Agent {
 				for (int i = 0; i < result.length; ++i) {
 					carAgents.addElement(result[i].getName());
 					System.out.println("Adding " + carAgents.elementAt(i).getName() + " to Master Scheduling Agent");
-					kvMap.put(result[i].getName(), false);
+					//kvMap.put(result[i].getName().getName(), false);
 				}
 			}
 			catch (FIPAException fe) {
@@ -132,7 +123,7 @@ public class MasterSchedulingAgent extends Agent {
 		private MessageTemplate mt; // The template to receive replies private int step = 0;
 		
 		public FindHighPriority(Agent a) { 
-		super(a, 2000);
+		super(a, 500);
 		}
 		
 		public void onTick() {
@@ -141,35 +132,45 @@ public class MasterSchedulingAgent extends Agent {
 			AID[] dockedCars = new AID[kvMap.size()];
 			for(int i = 0; i<kvMap.size(); i++)
 			{
-				if(kvMap.get(carAgents.elementAt(i)) == true)
-				kvMap.get(i);
+				if(kvMap.get(carAgents.elementAt(i).getName()) == true)
+				{
+					dockedCars[i] = carAgents.elementAt(i);
+				}
 			}
 			switch (step) {
 			
 			case 0:
 				// Send the cfp to all cars
-				ACLMessage cfp = new ACLMessage(ACLMessage.CFP); 
-				
-				for (int i = 0; i < carAgents.size(); ++i) {
-				      cfp.addReceiver(dockedCars[i]);
+				ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
+				for (int i = 0; i < dockedCars.length; ++i) {
+					System.out.println(dockedCars[0].getName());
+				      cfp.addReceiver(dockedCars[0]);
+				      step = 1;
 				    }
 				cfp.setContent(bCast);
-				cfp.setConversationId("info-collect"); cfp.setReplyWith("cfp"+System.currentTimeMillis()); // Unique value
+				cfp.setConversationId("info-collect"); 
+				cfp.setOntology("info-collect");
+				cfp.setReplyWith("cfp"+System.currentTimeMillis()); // Unique value
 				send(cfp);
 				// Prepare the template to get proposals 
-				mt = MessageTemplate.and(MessageTemplate.MatchConversationId("info-collect"),
-				           MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
-				step = 1;
+				//mt = MessageTemplate.and(MessageTemplate.MatchConversationId("info-collect"),
+				           //MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
+//				step = 1;
 				break;
 				    
 			case 1:
 				// Receive all proposals/refusals from seller agents 
-				ACLMessage reply = receive(mt);
+
+				System.out.println("CASE 1\n");
+				ACLMessage reply = receive();//mt
 				if (reply != null) 
 				{
+					System.out.println("WE HAVE INFO");
 					// Reply received
 					if (reply.getPerformative() == ACLMessage.PROPOSE) 
 					{
+						System.out.println("CORRECT MSG TYPE");
+						
 						// This is an offer
 						String msgContent = reply.getContent(); 
 						
@@ -190,7 +191,7 @@ public class MasterSchedulingAgent extends Agent {
 					}
 					repliesCount++;
 					
-					if (repliesCount >= carAgents.size()) 
+					if (repliesCount >= dockedCars.length) 
 					{
 						// We received all replies
 						step = 2; 
@@ -288,10 +289,11 @@ public class MasterSchedulingAgent extends Agent {
 	{ 
 		public void action() 
 		{
-			  ACLMessage msg = myAgent.receive();
+			  ACLMessage msg = receive();
 			  if (msg != null && msg.getOntology() == "request-charge") 
 			  {
-				  kvMap.put(msg.getSender(), true);
+				  System.out.println("Charge Request received from: " + msg.getSender().getName());
+				  kvMap.put(msg.getSender().getName(), true);
 			  }
 			  else 
 			  {
@@ -304,10 +306,10 @@ public class MasterSchedulingAgent extends Agent {
 	{ 
 		public void action() 
 		{
-			  ACLMessage msg = myAgent.receive();
+			  ACLMessage msg = receive();
 			  if (msg != null && msg.getOntology() == "stop-charge") 
 			  {
-				  kvMap.put(msg.getSender(), false);
+				  kvMap.put(msg.getSender().getName(), false);
 			  }
 			  else 
 			  {
