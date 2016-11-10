@@ -251,10 +251,12 @@ public class CarAgentOne extends Agent {
 	public class ReceiveRequestResult extends OneShotBehaviour  {
 		public void action() {
 			ACLMessage msg = receive();
+			System.out.println("");
 			if(msg != null)
 			{
+				System.out.println(msg.getContent());
 				if (msg.getContent() == "charge" && msg.getOntology() == "charge-order")	{
-	
+					System.out.println("CO received");
 					carState = "charging";
 					System.out.println(myAgent.getLocalName() + " has requested to charge.\n");		
 					ACLMessage reply = new ACLMessage(ACLMessage.INFORM);
@@ -290,12 +292,17 @@ public class CarAgentOne extends Agent {
 			if (msg != null && msg.getOntology() == "info-collect") {
 				System.out.println("info-collect message received");
 				String replyCode = msg.getReplyWith();
-				ACLMessage reply = new ACLMessage(ACLMessage.INFORM);							
+				ACLMessage reply = msg.createReply();//new ACLMessage(ACLMessage.INFORM);							
 				reply.setContent(Integer.toString(currentBattery) + ", " + Integer.toString(Math.abs(leaveTime[dayOfWeek] - currentTime)) + ", " + Boolean.toString(isHybrid) + ", " + Integer.toString(waitTime));
 				reply.setConversationId("info-collect");
-				reply.addReceiver(masterAgent);
+				reply.setOntology("info-collect");
+//				reply.addReceiver(masterAgent);
+				reply.setLanguage("English");
 				reply.setReplyWith(replyCode);
-				send(reply);
+				reply.addReplyTo(masterAgent);
+				reply.setPerformative(ACLMessage.INFORM);
+				System.out.println(reply.getContent());
+				//send(reply);
 			}
 		}
 	}

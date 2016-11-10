@@ -21,6 +21,8 @@ public class MasterSchedulingAgent extends Agent {
 	private Vector<AID> carAgents = new Vector<AID>();
 	Map<String, Boolean> kvMap = new HashMap<String,Boolean>();
 	int step; //Used for messaging switch statement
+	String store;
+	AID sender;
 
 	//masterSchedule variable - data type?
 
@@ -127,7 +129,7 @@ public class MasterSchedulingAgent extends Agent {
 		}
 		
 		public void onTick() {
-			
+			//ACLMessage reply = receive();
 			//USE MAP TO MAKE dockedCars ARRAY
 			AID[] dockedCars = new AID[kvMap.size()];
 			for(int i = 0; i<kvMap.size(); i++)
@@ -153,29 +155,27 @@ public class MasterSchedulingAgent extends Agent {
 				cfp.setReplyWith("cfp"+System.currentTimeMillis()); // Unique value
 				send(cfp);
 				// Prepare the template to get proposals 
-				//mt = MessageTemplate.and(MessageTemplate.MatchConversationId("info-collect"),
-				           //MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
+				mt = MessageTemplate.and(MessageTemplate.MatchConversationId("info-collect"), MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
 //				step = 1;
 				break;
 				    
 			case 1:
-				// Receive all proposals/refusals from seller agents 
+				// Receive all info from charging car agents 
 
-				System.out.println("CASE 1\n");
-				ACLMessage reply = receive();//mt
+				ACLMessage reply = blockingReceive();//mt
 				if (reply != null) 
 				{
-					System.out.println("WE HAVE INFO");
+					System.out.println(reply.getContent());
 					// Reply received
 					if (reply.getPerformative() == ACLMessage.PROPOSE) 
 					{
-						System.out.println("CORRECT MSG TYPE");
 						
 						// This is an offer
-						String msgContent = reply.getContent(); 
+						//String msgContent = reply.getContent(); 
 						
 						//BREAK UP STRING, GET VARIABLES, DO CALC
-						String[] parts = msgContent.split(", ");
+						//String[] parts = msgContent.split(", ");
+						String[] parts = store.split(", ");
 						int battLevel = Integer.parseInt(parts[0]);
 						float timeToLeave = Float.parseFloat(parts[1]);
 						boolean isHybrid = Boolean.parseBoolean(parts[2]);
@@ -186,7 +186,7 @@ public class MasterSchedulingAgent extends Agent {
 						if (highPriorityCar == null || priority > highestPriority) 
 						{
 							// This is the best offer at present bestPrice = price;
-							highPriorityCar = reply.getSender();
+							highPriorityCar = sender; //reply.getSender();
 						} 
 					}
 					repliesCount++;
@@ -215,6 +215,7 @@ public class MasterSchedulingAgent extends Agent {
 			        charge.setReplyWith("charge"+System.currentTimeMillis()); //Unique value
 			        
 			       send(charge);
+			       System.out.println("charge order sent");
 			       // Prepare the template to get the purchase order reply 
 			       mt = MessageTemplate.and(
 	               MessageTemplate.MatchConversationId("charge-order"),
@@ -229,7 +230,7 @@ public class MasterSchedulingAgent extends Agent {
 			      break;
 			      
 			case 3:
-				// Receive the purchase order reply 
+				// Receive the confirmation 
 				reply = receive(mt);
 				if (reply != null)
 				{
@@ -294,6 +295,11 @@ public class MasterSchedulingAgent extends Agent {
 			  {
 				  System.out.println("Charge Request received from: " + msg.getSender().getName());
 				  kvMap.put(msg.getSender().getName(), true);
+			  }
+			  if (msg != null && msg.getOntology() == "info-collect") 
+			  {
+				  store = msg.getContent();
+				  sender = msg.getSender();
 			  }
 			  else 
 			  {
